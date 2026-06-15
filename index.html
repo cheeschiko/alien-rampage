@@ -2818,7 +2818,7 @@ const ENC=[
 const BOSS_DEF={
   captain: {name:'중간보스 - 캡틴 스틸', sub:'우주군 특수부대 대위', hp:550, scale:1.7, spd:1.5, dmgD:16, dmgS:14, idx:0},
   mech:    {name:'중간보스 - 크러셔 MK-II', sub:'인류군 전투병기', hp:850, scale:2.05, spd:1.1, dmgD:20, dmgS:18, idx:1},
-  overlord:{name:'최종보스 - 제너럴 오메가', sub:'인류군 총사령관', hp:1400, scale:2.25, spd:1.4, dmgD:24, dmgS:20, idx:2}
+  overlord:{name:'최종보스 - 제너럴 오메가', sub:'인류군 총사령관', hp:1150, scale:2.25, spd:1.35, dmgD:21, dmgS:18, idx:2}
 };
 
 function mkPlayer(){
@@ -3005,10 +3005,10 @@ function hitBoss(dmg,atkT,dir){
   if(atkT===3){doShake(7,8);pAdd(b.x,b.y-50,12,'#CE93D8',1.5);}
   if(atkT===6){doShake(5,6);pAdd(b.x,b.y-50,10,'#4DD0E1',1.4);}
   if(b.type==='overlord'&&b.phase===1&&b.hp<=b.maxHp*0.5&&!b.dead){
-    b.phase=2; b.spd*=1.45;
+    b.phase=2; b.spd*=1.25;
     showBanner('!! 각성 !!','제너럴 오메가가 분노했다!','#ff1744',160);
     doShake(9,20); pAdd(b.x,b.y-50,30,'#ff1744',2);
-    SQ.push({t:20,type:'elite',side:'L'},{t:50,type:'elite',side:'R'});
+    SQ.push({t:45,type:'elite',side:'L'});
   }
   if(b.hp<=0&&!b.dead){
     b.dead=true; b.deadT=130; b.state='dead'; b.expT=0;
@@ -3268,12 +3268,12 @@ function updateBoss(){
       if(b.type==='captain') pool= ad<150?['slam','slam','dash','jump']:['dash','slam','jump','jump'];
       else if(b.type==='mech') pool= ad<160?['slam','slam','rocket']:['rocket','rocket','slam','dash'];
       else pool= ad<150?['slam','dash','volley']:['dash','volley','volley','slam'];
-      if(b.type==='overlord'&&b.phase===2&&Math.random()<0.3){
+      if(b.type==='overlord'&&b.phase===2&&Math.random()<0.2){
         b.state='tele'; b.t=16;
       } else {
         b.next=pool[Math.floor(Math.random()*pool.length)];
         b.state='windup';
-        b.wuT=(b.phase===2?22:30)+(b.next==='jump'?6:0);
+        b.wuT=(b.phase===2?27:30)+(b.next==='jump'?6:0);
         b.t=b.wuT;
       }
     }
@@ -3366,7 +3366,7 @@ function updateBoss(){
   }
   else if(b.state==='recover'){
     b.moving=false; b.t--;
-    if(b.t<=0){b.state='idle';b.t=55+Math.random()*45-(b.phase-1)*22;}
+    if(b.t<=0){b.state='idle';b.t=55+Math.random()*45-(b.phase-1)*12;}
   }
   b.x=clamp(b.x,camX+40,camX+W+100);
 }
