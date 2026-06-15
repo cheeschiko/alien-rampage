@@ -2644,7 +2644,7 @@ function drawOverlordBody(b,wc,bob,aA,lift,flash){
 const STAGE_NAMES=['폐허의 도시','붉은 황무지','인류 최후의 기지'];
 function drawHUD(p,score){
   // HP
-  cx.fillStyle='rgba(0,0,0,0.55)'; rr(12,12,235,36,5);
+  cx.fillStyle='rgba(0,0,0,0.55)'; rr(12,12,235,52,5);
   cx.fillStyle='#1a1a1a'; cx.fillRect(18,18,210,22);
   const hr=Math.max(0,p.hp/p.maxHp);
   const hg=cx.createLinearGradient(18,0,228,0);
@@ -2656,6 +2656,15 @@ function drawHUD(p,score){
   cx.strokeStyle='#444'; cx.lineWidth=1; cx.strokeRect(18,18,210,22);
   cx.fillStyle='#fff'; cx.font='bold 11px Courier New'; cx.textAlign='left';
   cx.fillText('HP  '+Math.max(0,Math.round(p.hp))+' / '+p.maxHp, 24,33);
+  // Level badge + EXP bar
+  cx.fillStyle='#FFD54F'; cx.font='bold 12px Courier New'; cx.textAlign='right';
+  cx.fillText('LV '+p.level, 224,32);
+  cx.fillStyle='#15161a'; cx.fillRect(18,43,210,7);
+  const er=clamp(p.exp/p.expNext,0,1);
+  const eg=cx.createLinearGradient(18,0,228,0);
+  eg.addColorStop(0,'#42A5F5'); eg.addColorStop(1,'#7C4DFF');
+  cx.fillStyle=eg; cx.fillRect(18,43,210*er,7);
+  cx.strokeStyle='#3a3d4a'; cx.lineWidth=1; cx.strokeRect(18,43,210,7);
   // Stage + progress bar
   const zi=camX+W/2>=Z2?2:camX+W/2>=Z1?1:0;
   cx.fillStyle='rgba(0,0,0,0.55)'; rr(W/2-110,12,220,50,5);
@@ -2681,40 +2690,40 @@ function drawHUD(p,score){
   // Combo gauge
   if(p.comboTimer>0){
     const cp=p.comboTimer/70;
-    cx.fillStyle='rgba(0,0,0,0.5)'; cx.fillRect(18,44,100,8);
+    cx.fillStyle='rgba(0,0,0,0.5)'; cx.fillRect(18,62,100,8);
     const cg=cx.createLinearGradient(18,0,118,0);
     cg.addColorStop(0,'#e040fb'); cg.addColorStop(1,'#ff80ff');
-    cx.fillStyle=cg; cx.fillRect(18,44,100*cp,8);
+    cx.fillStyle=cg; cx.fillRect(18,62,100*cp,8);
     cx.fillStyle='#f0f'; cx.font='bold 10px Courier New'; cx.textAlign='left';
     cx.shadowColor='#f0f'; cx.shadowBlur=5;
-    cx.fillText('A 콤보!',126,52); cx.shadowBlur=0;
+    cx.fillText('A 콤보!',126,70); cx.shadowBlur=0;
   }
   // tornado cooldown gauge
   if(p.spinCool>0){
     const sp=1-p.spinCool/200;
-    cx.fillStyle='rgba(0,0,0,0.5)'; cx.fillRect(18,56,100,8);
-    cx.fillStyle=sp>=1?'#4DD0E1':'#26737e'; cx.fillRect(18,56,100*sp,8);
+    cx.fillStyle='rgba(0,0,0,0.5)'; cx.fillRect(18,74,100,8);
+    cx.fillStyle=sp>=1?'#4DD0E1':'#26737e'; cx.fillRect(18,74,100*sp,8);
     cx.fillStyle='#9be7ff'; cx.font='bold 10px Courier New'; cx.textAlign='left';
-    cx.fillText('D 회오리',126,64);
+    cx.fillText('D 회오리',126,82);
   }
   // energy ball cooldown gauge
   if(p.shotCool>0&&p.ammo<=0){
     const sp=1-p.shotCool/75;
-    cx.fillStyle='rgba(0,0,0,0.5)'; cx.fillRect(18,68,100,8);
-    cx.fillStyle='#8e5aa8'; cx.fillRect(18,68,100*sp,8);
+    cx.fillStyle='rgba(0,0,0,0.5)'; cx.fillRect(18,86,100,8);
+    cx.fillStyle='#8e5aa8'; cx.fillRect(18,86,100*sp,8);
     cx.fillStyle='#E1BEE7'; cx.font='bold 10px Courier New'; cx.textAlign='left';
-    cx.fillText('F 에너지볼',126,76);
+    cx.fillText('F 에너지볼',126,94);
   }
   // ray gun ammo
   if(p.ammo>0){
-    cx.fillStyle='rgba(0,0,0,0.55)'; rr(12,80,98,22,5);
-    cx.save(); cx.translate(28,91); cx.lineJoin='round';
+    cx.fillStyle='rgba(0,0,0,0.55)'; rr(12,104,98,22,5);
+    cx.save(); cx.translate(28,115); cx.lineJoin='round';
     cx.fillStyle='#cfd5e2'; rr(-8,-3.5,13,6,2);
     cx.strokeStyle='#241200'; cx.lineWidth=1.6; cx.stroke();
     cx.fillStyle='#FFEB3B'; cx.beginPath(); cx.arc(7,-0.5,3,0,Math.PI*2); cx.fill();
     cx.restore();
     cx.fillStyle='#FFEB3B'; cx.font='bold 13px Courier New'; cx.textAlign='left';
-    cx.fillText('x '+p.ammo, 44,96);
+    cx.fillText('x '+p.ammo, 44,120);
   }
   cx.textAlign='left';
   // Boss HP bar
@@ -2829,7 +2838,8 @@ function mkPlayer(){
     // 1 jab, 2 smash(S), 3 uppercut(S->A), 4 cross, 5 spin kick, 6 tornado(D), 7 energy ball(F)
     atkDur:[0,14,22,32,15,24,34,18], atkDmg:[0,15,30,55,20,32,38,22], atkRange:[0,82,110,140,92,124,120,0],
     comboStep:0,comboTimer:0,hurtTimer:0,inv:0,
-    chainTimer:0,chainNext:0,spinCool:0,shotCool:0,ammo:0
+    chainTimer:0,chainNext:0,spinCool:0,shotCool:0,ammo:0,
+    level:1,exp:0,expNext:120,pwr:1
   };
 }
 
@@ -2927,9 +2937,25 @@ function hitEnemy(e,dmg,atkT,dir){
   if(e.hp<=0&&!e.dead) killEnemy(e);
 }
 
+function gainExp(n){
+  const p=player;
+  p.exp+=n;
+  while(p.exp>=p.expNext){
+    p.exp-=p.expNext;
+    p.level++;
+    p.expNext=Math.round(p.expNext*1.35);
+    p.maxHp+=24; p.hp=p.maxHp;          // level up fully heals
+    p.pwr=1+(p.level-1)*0.07;            // +7% damage per level
+    htAdd(p.x,p.y-150,'LEVEL UP!','#FFD54F');
+    pAdd(p.x,p.y-50,26,'#FFD54F',1.8); pAdd(p.x,p.y-50,18,'#7C4DFF',1.5);
+    doShake(4,8);
+    showBanner('LEVEL '+p.level+' 달성!','체력 회복 · 공격력 상승!','#FFD54F',120);
+  }
+}
+
 function killEnemy(e){
   e.dead=true; e.state='dead'; e.isFlying=false; e.deadTimer=150;
-  score+=e.scoreV;
+  score+=e.scoreV; gainExp(Math.round(e.scoreV*0.12));
   pAdd(e.x,e.y-20,25,'#FF4400',2.2); htAdd(e.x,e.y-82,'KO!!','#FF4400');
   dropItem(e.x,e.y);
 }
@@ -3013,6 +3039,7 @@ function hitBoss(dmg,atkT,dir){
   if(b.hp<=0&&!b.dead){
     b.dead=true; b.deadT=130; b.state='dead'; b.expT=0;
     score+=b.idx===2?3000:1500;
+    gainExp(b.idx===0?90:b.idx===1?160:250);
     doShake(12,24);
     htAdd(b.x,b.y-120,'BOSS DOWN!!','#FF4400');
   }
@@ -3089,23 +3116,23 @@ function updatePlayer(){
       const range=p.atkRange[6];
       enemies.forEach(e=>{
         if(e.dead||e.isFlying)return;
-        if(Math.abs(e.x-p.x)<range&&Math.abs(e.y-p.y)<38)hitEnemy(e,16,6,Math.sign(e.x-p.x)||1);
+        if(Math.abs(e.x-p.x)<range&&Math.abs(e.y-p.y)<38)hitEnemy(e,Math.round(16*p.pwr),6,Math.sign(e.x-p.x)||1);
       });
       if(boss&&!boss.dead&&Math.abs(boss.x-p.x)<range+40&&Math.abs(boss.y-p.y)<52)
-        hitBoss(16,6,Math.sign(boss.x-p.x)||1);
+        hitBoss(Math.round(16*p.pwr),6,Math.sign(boss.x-p.x)||1);
       doShake(4,5);pAdd(p.x,p.y-40,8,'#4DD0E1',1.2);
     }
     if(p.atkType!==6 && p.atkTimer===Math.floor(dur*[0,0.40,0.55,0.45,0.42,0.50,0.50,0.45][p.atkType])){
-      const range=p.atkRange[p.atkType],dmg=p.atkDmg[p.atkType];
+      const range=p.atkRange[p.atkType],dmg=Math.round(p.atkDmg[p.atkType]*p.pwr);
       if(p.atkType===7){
         if(p.ammo>0){
           // ray gun bullet
           p.ammo--;
-          PR.push({kind:'gun',x:p.x+p.facing*34,y:p.y,vx:p.facing*14,life:70,dir:p.facing,dmg:30});
+          PR.push({kind:'gun',x:p.x+p.facing*34,y:p.y,vx:p.facing*14,life:70,dir:p.facing,dmg:Math.round(30*p.pwr)});
           pAdd(p.x+p.facing*34,p.y-34,4,'#FFEB3B',1);
         } else {
           // energy ball launch
-          PR.push({kind:'ball',x:p.x+p.facing*32,y:p.y,vx:p.facing*9.5,life:80,dir:p.facing,dmg:22});
+          PR.push({kind:'ball',x:p.x+p.facing*32,y:p.y,vx:p.facing*9.5,life:80,dir:p.facing,dmg:Math.round(22*p.pwr)});
           pAdd(p.x+p.facing*32,p.y-34,6,'#CE93D8',1);
         }
       } else {
