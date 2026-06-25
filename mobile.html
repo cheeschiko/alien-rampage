@@ -104,6 +104,8 @@ function rr(x,y,w,h,r) {
 // ── Particles (world coords) ────────────────────────────
 const P = [];
 function pAdd(x,y,n,col,spd=1) {
+  if(P.length>120) return;          // mobile: hard cap keeps draw cost bounded
+  n=Math.ceil(n*0.55);              // mobile: lighter particle bursts
   for(let i=0;i<n;i++){
     const a=rnd(0,Math.PI*2), s=rnd(2,7)*spd;
     P.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-rnd(1,3),r:rnd(2,5),col,life:1,dec:rnd(.03,.07)});
@@ -3859,13 +3861,36 @@ function scrWin(){
 }
 
 // ── Main loop ──────────────────────────────────────────
-function loop(ts){
-  requestAnimationFrame(loop);
-  gTime=ts/1000;
+// ── Fixed-timestep loop (mobile) ────────────────────────
+// Logic runs at a steady 60 ticks/sec no matter the render fps, so movement &
+// response feel identical even when the phone can't paint 60fps. Rendering then
+// happens once per animation frame.
+const STEP=1/60;
+let _acc=0, _last=0;
+
+function update(){            // all game-state mutation — fixed rate
   shkTick();
+  updatePlayer();
+  updateEnemies();
+  updateBoss();
+  updateSW();
+  updatePR();
+  updateEP();
+  updateItems();
+  updateCam();
+  checkZone();
+  if(lock==null && encIdx<ENC.length && camX>=ENC[encIdx].cam-5){
+    startEncounter(ENC[encIdx]);
+  } else if(lock!=null && !boss && encounterCleared()){
+    finishEncounter();
+  }
+  pTick(); htTick();
+  Object.assign(prev,keys);
+}
+
+function render(){           // pure drawing — once per animation frame
   cx.save(); cx.translate(shkX,shkY);
   drawBG(gTime);
-
   if(scene!==SC.INTRO && player){
     drawItems();
     const ents=[
@@ -3880,32 +3905,29 @@ function loop(ts){
     drawSW();
     drawPR();
     drawEP();
-    pTick();pDraw();htTick();htDraw();
+    pDraw(); htDraw();
   }
-
-  if(scene===SC.PLAY){
-    updatePlayer();
-    updateEnemies();
-    updateBoss();
-    updateSW();
-    updatePR();
-    updateEP();
-    updateItems();
-    updateCam();
-    checkZone();
-    if(lock==null && encIdx<ENC.length && camX>=ENC[encIdx].cam-5){
-      startEncounter(ENC[encIdx]);
-    } else if(lock!=null && !boss && encounterCleared()){
-      finishEncounter();
-    }
-    if(scene===SC.PLAY){drawHUD(player,score);drawBanner();}
-    else if(scene===SC.OVER){drawHUD(player,score);}
-  } else if(scene===SC.INTRO) scrIntro();
+  if(scene===SC.PLAY){drawHUD(player,score);drawBanner();}
+  else if(scene===SC.INTRO) scrIntro();
   else if(scene===SC.OVER){drawHUD(player,score);scrOver();}
   else if(scene===SC.WIN){scrWin();}
-
   cx.restore();
-  Object.assign(prev,keys);
+}
+
+function loop(ts){
+  requestAnimationFrame(loop);
+  gTime=ts/1000;
+  let dt=_last?(ts-_last)/1000:0; _last=ts;
+  if(dt>0.25)dt=0.25;            // clamp big gaps (tab switch / hitch)
+  if(scene===SC.PLAY){
+    _acc+=dt;
+    let n=0;
+    while(_acc>=STEP && n<5){     // catch up at fixed rate, capped to avoid spiral
+      update(); _acc-=STEP; n++;
+      if(scene!==SC.PLAY) break;  // a tick ended the run
+    }
+  } else { _acc=0; }
+  render();
 }
 
 function act(){if(scene===SC.INTRO||scene===SC.OVER||scene===SC.WIN)startGame();}
