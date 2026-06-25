@@ -27,6 +27,9 @@ canvas { display:block; border:2px solid #1a1a3a; box-shadow:0 0 50px rgba(120,8
 #btnS { right:92px;  bottom:44px; }
 #btnD { right:34px;  bottom:96px; }
 #btnF { right:112px; bottom:122px; width:56px; height:56px; }
+#btnStats { position:absolute; left:14px; top:14px; pointer-events:auto; touch-action:none;
+  padding:8px 13px; border-radius:8px; background:rgba(124,77,255,0.32); border:2px solid rgba(124,77,255,0.7);
+  color:#fff; font:bold 13px 'Courier New'; }
 #rotate { display:none; position:fixed; inset:0; background:#060614; z-index:50;
   color:#FFD700; font:bold 18px 'Courier New'; align-items:center; justify-content:center; text-align:center; line-height:1.8; }
 @media (orientation:portrait){ #rotate { display:flex; } }
@@ -37,6 +40,7 @@ canvas { display:block; border:2px solid #1a1a3a; box-shadow:0 0 50px rgba(120,8
 <div id="ctrl"></div>
 <div id="touchui">
   <div id="joy"><div id="joyknob"></div></div>
+  <div id="btnStats">스탯</div>
   <div class="tbtn" id="btnA" data-key="a">잽<small>연타=연계</small></div>
   <div class="tbtn" id="btnS" data-key="s">강타<small>→잽=어퍼</small></div>
   <div class="tbtn" id="btnD" data-key="d">회오리</div>
@@ -2806,6 +2810,13 @@ function drawHUD(p,score){
   eg.addColorStop(0,'#42A5F5'); eg.addColorStop(1,'#7C4DFF');
   cx.fillStyle=eg; cx.fillRect(18,43,210*er,7);
   cx.strokeStyle='#3a3d4a'; cx.lineWidth=1; cx.strokeRect(18,43,210,7);
+  // stat-points available indicator (blinks)
+  if(p.statPts>0 && Math.floor(gTime*3)%2===0){
+    cx.fillStyle='rgba(124,77,255,0.9)'; rr(W/2-96,64,192,20,5);
+    cx.fillStyle='#fff'; cx.font='bold 12px Courier New'; cx.textAlign='center';
+    cx.fillText('★ 스탯 포인트 '+p.statPts+'개 — P / 버튼 ★', W/2,78);
+    cx.textAlign='left';
+  }
   // Stage + progress bar
   const zi=camX+W/2>=Z2?2:camX+W/2>=Z1?1:0;
   cx.fillStyle='rgba(0,0,0,0.55)'; rr(W/2-110,12,220,50,5);
@@ -2921,8 +2932,9 @@ function drawBanner(){
 }
 
 // ── Game state ─────────────────────────────────────────
-const SC={INTRO:0,PLAY:1,OVER:2,WIN:3};
+const SC={INTRO:0,PLAY:1,OVER:2,WIN:3,STATS:4};
 let scene=SC.INTRO, score=0, gTime=0;
+let statHit=[];     // clickable regions on the stat-allocation overlay
 let player=null, enemies=[], boss=null;
 let camX=0, minCam=0, lock=null, encIdx=0;
 let SQ=[];          // spawn queue: {t,type,side}
@@ -2985,8 +2997,21 @@ function mkPlayer(){
     atkDur:[0,14,22,32,15,24,34,18,28,30], atkDmg:[0,15,30,55,20,32,38,22,58,46], atkRange:[0,82,110,140,92,124,120,0,138,158],
     comboStep:0,comboTimer:0,hurtTimer:0,inv:0,
     chainTimer:0,chainNext:0,spinCool:0,shotCool:0,ammo:0,
-    level:1,exp:0,expNext:120,pwr:1
+    level:1,exp:0,expNext:120,pwr:1,def:0,luck:0,
+    statPts:0, stats:{agi:0,atk:0,def:0,hp:0,luck:0}
   };
+}
+
+// recompute derived character power from allocated stats
+// 민첩=이동속도, 공격력=데미지, 방어력=피해감소, 체력=최대HP, 운=드롭률
+function applyStats(){
+  const p=player; if(!p)return; const s=p.stats;
+  p.speed = 3.8 + s.agi*0.13;
+  p.pwr   = 1 + s.atk*0.05;
+  p.def   = Math.min(0.6, s.def*0.04);   // damage reduction, capped 60%
+  p.luck  = s.luck;
+  p.maxHp = 200 + s.hp*22;
+  if(p.hp>p.maxHp) p.hp=p.maxHp;
 }
 
 function mkEnemy(type,side){
@@ -3024,6 +3049,7 @@ function startGame(){
   SQ=[]; SW=[]; PR=[]; EP=[]; ITEMS=[]; lock=null; encIdx=0; camX=0; minCam=0;
   bossKilled=[false,false,false,false]; lastZone=0; banner=null; winT=0;
   player=mkPlayer();
+  applyStats();
   scene=SC.PLAY;
   showBanner('STAGE 1 - 폐허의 도시','인간들의 도시를 돌파하라!');
 }
@@ -3058,8 +3084,9 @@ function damagePlayer(d){
   if(player.inv>0||scene!==SC.PLAY)return;
   // tornado spin deflects all incoming attacks
   if(player.attacking&&player.atkType===6)return;
-  player.hp-=d; player.hurtTimer=22; player.inv=52;
-  htAdd(player.x,player.y-132,'-'+d,'#FF3300');
+  const dd=Math.max(1,Math.round(d*(1-(player.def||0))));  // 방어력으로 피해 감소
+  player.hp-=dd; player.hurtTimer=22; player.inv=52;
+  htAdd(player.x,player.y-132,'-'+dd,'#FF3300');
   pAdd(player.x,player.y-45,8,'#FF0000'); doShake(5,7);
 }
 
@@ -3090,12 +3117,11 @@ function gainExp(n){
     p.exp-=p.expNext;
     p.level++;
     p.expNext=Math.round(p.expNext*1.35);
-    p.maxHp+=24; p.hp=p.maxHp;          // level up fully heals
-    p.pwr=1+(p.level-1)*0.07;            // +7% damage per level
-    htAdd(p.x,p.y-150,'LEVEL UP!','#FFD54F');
+    p.statPts+=4; p.hp=p.maxHp;          // +4 stat points & full heal
+    htAdd(p.x,p.y-150,'LEVEL UP! +4P','#FFD54F');
     pAdd(p.x,p.y-50,26,'#FFD54F',1.8); pAdd(p.x,p.y-50,18,'#7C4DFF',1.5);
     doShake(4,8);
-    showBanner('LEVEL '+p.level+' 달성!','체력 회복 · 공격력 상승!','#FFD54F',120);
+    showBanner('LEVEL '+p.level+' 달성!','스탯 +4 포인트 — P키로 분배','#FFD54F',140);
   }
 }
 
@@ -3108,9 +3134,11 @@ function killEnemy(e){
 
 // ── Item pickups ────────────────────────────────────────
 function dropItem(x,y){
+  const luck=(player&&player.luck)||0;        // 운: 드롭률 상승
+  const gunC=0.10+luck*0.006, meatC=gunC+0.14+luck*0.009;
   const r=Math.random();
-  if(r<0.10)ITEMS.push({kind:'gun',x,y:clamp(y,GT+12,GB),t:Math.random()*6,life:780});
-  else if(r<0.24)ITEMS.push({kind:'meat',x,y:clamp(y,GT+12,GB),t:Math.random()*6,life:780});
+  if(r<gunC)ITEMS.push({kind:'gun',x,y:clamp(y,GT+12,GB),t:Math.random()*6,life:780});
+  else if(r<meatC)ITEMS.push({kind:'meat',x,y:clamp(y,GT+12,GB),t:Math.random()*6,life:780});
 }
 function updateItems(){
   for(let i=ITEMS.length-1;i>=0;i--){
@@ -3822,7 +3850,7 @@ function scrIntro(){
   cx.fillText('보스들을 격파하고 최종병기 디스트로이어를 쓰러뜨려라...',W/2,270);
   cx.fillStyle='#FFE082';cx.font='13px Courier New';
   cx.fillText('A 4연타(잽·크로스·차기·피니시)   S: 내려찍기   S→A: 어퍼컷   S→S: 지진강타',W/2,308);
-  cx.fillText('D: 회오리    F: 에너지볼    ·    적 처치 시 레벨업(체력·공격력↑)',W/2,326);
+  cx.fillText('D: 회오리   F: 에너지볼   ·   레벨업마다 스탯 4포인트 분배 (버튼/P)',W/2,326);
   cx.fillStyle='#9be7ff';cx.font='12px Courier New';
   cx.fillText('적은 무시하고 달려도 된다 (계속 쫓아옴!)  ·  적 처치 시 레이건/고기 드랍',W/2,348);
   cx.fillStyle='#FFD700';cx.font='bold 17px Courier New';
@@ -3865,6 +3893,68 @@ function scrWin(){
 // Logic runs at a steady 60 ticks/sec no matter the render fps, so movement &
 // response feel identical even when the phone can't paint 60fps. Rendering then
 // happens once per animation frame.
+// ── Stat allocation overlay ─────────────────────────────
+const STAT_META=[
+  {key:'agi',  name:'민첩',   desc:'이동 속도 상승',   col:'#4DD0E1'},
+  {key:'atk',  name:'공격력', desc:'모든 공격 데미지 상승', col:'#FF7043'},
+  {key:'def',  name:'방어력', desc:'받는 피해 감소',   col:'#66BB6A'},
+  {key:'hp',   name:'체력',   desc:'최대 HP 상승',     col:'#EF5350'},
+  {key:'luck', name:'운',     desc:'아이템 드롭률 상승', col:'#FFD54F'}
+];
+function toggleStats(){
+  if(scene===SC.PLAY) scene=SC.STATS;
+  else if(scene===SC.STATS) scene=SC.PLAY;
+  const tu=document.getElementById('touchui'); if(tu) tu.style.display=(scene===SC.STATS)?'none':'';
+}
+function drawStats(){
+  const p=player; statHit=[];
+  cx.fillStyle='rgba(6,6,20,0.82)'; cx.fillRect(0,0,W,H);
+  const pw=440, ph=352, px=W/2-pw/2, py=H/2-ph/2;
+  cx.fillStyle='rgba(20,22,34,0.97)'; rr(px,py,pw,ph,12);
+  cx.strokeStyle='#7C4DFF'; cx.lineWidth=2; cx.strokeRect(px,py,pw,ph);
+  cx.textAlign='center';
+  cx.fillStyle='#FFD54F'; cx.font='bold 22px Courier New';
+  cx.fillText('스탯 분배   (LV '+p.level+')', W/2, py+32);
+  cx.fillStyle='#9be7ff'; cx.font='bold 15px Courier New';
+  cx.fillText('남은 포인트: '+p.statPts, W/2, py+56);
+  const rowY0=py+88, rh=44;
+  STAT_META.forEach((m,i)=>{
+    const y=rowY0+i*rh, val=p.stats[m.key];
+    cx.textAlign='left';
+    cx.fillStyle=m.col; cx.font='bold 16px Courier New'; cx.fillText(m.name, px+22, y+4);
+    cx.fillStyle='#8893bb'; cx.font='11px Courier New'; cx.fillText(m.desc, px+22, y+20);
+    const bw=30, bh=30, minusX=W/2+54, plusX=W/2+128, by=y-13;
+    const canMinus=val>0, canPlus=p.statPts>0;
+    cx.fillStyle=canMinus?'#5a3236':'#26262e'; rr(minusX,by,bw,bh,5);
+    cx.fillStyle=canMinus?'#ff8a8a':'#555'; cx.font='bold 20px Courier New'; cx.textAlign='center';
+    cx.fillText('-', minusX+bw/2, by+bh/2+7);
+    cx.fillStyle='#fff'; cx.font='bold 18px Courier New';
+    cx.fillText(val, W/2+100, by+bh/2+6);
+    cx.fillStyle=canPlus?'#33533a':'#26262e'; rr(plusX,by,bw,bh,5);
+    cx.fillStyle=canPlus?'#9bff9b':'#555'; cx.font='bold 20px Courier New';
+    cx.fillText('+', plusX+bw/2, by+bh/2+7);
+    statHit.push({x:minusX,y:by,w:bw,h:bh,fn:()=>{ if(p.stats[m.key]>0){p.stats[m.key]--;p.statPts++;applyStats();} }});
+    statHit.push({x:plusX,y:by,w:bw,h:bh,fn:()=>{ if(p.statPts>0){p.stats[m.key]++;p.statPts--;applyStats();} }});
+  });
+  const cbw=190,cbh=34,cbx=W/2-cbw/2,cby=py+ph-44;
+  cx.fillStyle='#7C4DFF'; rr(cbx,cby,cbw,cbh,8);
+  cx.fillStyle='#fff'; cx.font='bold 15px Courier New'; cx.textAlign='center';
+  cx.fillText('계속하기', W/2, cby+cbh/2+5);
+  statHit.push({x:cbx,y:cby,w:cbw,h:cbh,fn:()=>toggleStats()});
+  cx.textAlign='left';
+}
+function canvasXY(clientX,clientY){
+  const r=CV.getBoundingClientRect();
+  return [(clientX-r.left)*(W/r.width),(clientY-r.top)*(H/r.height)];
+}
+function screenTap(clientX,clientY){
+  if(scene===SC.STATS){
+    const xy=canvasXY(clientX,clientY);
+    for(const b of statHit){ if(xy[0]>=b.x&&xy[0]<=b.x+b.w&&xy[1]>=b.y&&xy[1]<=b.y+b.h){ b.fn(); return; } }
+    return;
+  }
+  if(scene===SC.INTRO||scene===SC.OVER||scene===SC.WIN) startGame();
+}
 const STEP=1/60;
 let _acc=0, _last=0;
 
@@ -3911,6 +4001,7 @@ function render(){           // pure drawing — once per animation frame
   else if(scene===SC.INTRO) scrIntro();
   else if(scene===SC.OVER){drawHUD(player,score);scrOver();}
   else if(scene===SC.WIN){scrWin();}
+  else if(scene===SC.STATS){drawHUD(player,score);drawStats();}
   cx.restore();
 }
 
@@ -3932,7 +4023,8 @@ function loop(ts){
 
 function act(){if(scene===SC.INTRO||scene===SC.OVER||scene===SC.WIN)startGame();}
 window.addEventListener('keydown',e=>{if(e.code==='Enter'||e.key==='Enter')act();});
-CV.addEventListener('click',act);
+window.addEventListener('keydown',e=>{if(e.code==='KeyP'){e.preventDefault();if(scene===SC.PLAY||scene===SC.STATS)toggleStats();}});
+CV.addEventListener('click',e=>screenTap(e.clientX,e.clientY));
 
 requestAnimationFrame(loop);
 
@@ -3984,8 +4076,11 @@ requestAnimationFrame(loop);
     btn.addEventListener('touchcancel',off);
   });
 
-  // tap the game screen to start / restart
-  CV.addEventListener('touchstart',()=>{act();},{passive:true});
+  // stat-allocation button
+  const sbtn=document.getElementById('btnStats');
+  if(sbtn) sbtn.addEventListener('touchstart',e=>{e.preventDefault();toggleStats();},{passive:false});
+  // tap the game screen to start / restart, or hit overlay buttons
+  CV.addEventListener('touchstart',(e)=>{const t=e.changedTouches[0]; if(t)screenTap(t.clientX,t.clientY);},{passive:true});
 })();
 </script>
 </body>
